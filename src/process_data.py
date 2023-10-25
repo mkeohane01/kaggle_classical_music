@@ -52,8 +52,8 @@ def count_subscriptions(subscriptions, test_data, train_data, is_print=False):
     train_data['subs_count'].fillna(0, inplace=True)
 
     # do same thing for test_df
-    test_data['prev_subs'] = test_data['ID'].map(subscriptions['account.id'].value_counts())
-    test_data['prev_subs'].fillna(0, inplace=True)
+    test_data['subs_count'] = test_data['ID'].map(subscriptions['account.id'].value_counts())
+    test_data['subs_count'].fillna(0, inplace=True)
 
     if is_print:
         print(train_data.head(2))
@@ -62,6 +62,19 @@ def count_subscriptions(subscriptions, test_data, train_data, is_print=False):
         print(f"test shape: {test_data.shape}")
     
     return train_data, test_data
+
+def pivot_seasons_subs(subs_df, is_print=False):
+    """
+    encode the seasons column in the subscriptions dataframe thorugh pivoting
+    Return: subs_df: updated dataframe with one hot encoded seasons
+    """
+    subs_pivot = subs_df.pivot_table(index='account.id', columns='season', values='subscription_tier', aggfunc='max')
+    subs_pivot = subs_pivot.fillna(0)
+
+    if is_print:
+        print(subs_pivot.head(2))
+        print(f"df shape: {subs_pivot.shape}")
+    return subs_pivot
 
 def clean_data(accounts, tickets_all, is_print=False):
     """
@@ -94,14 +107,16 @@ def clean_data(accounts, tickets_all, is_print=False):
 
     return account_nums, tickets_all_nums
 
-def merge_data(accounts, tickets_all, is_print=False):
+def merge_data(accounts, tickets_all, subsriptions, is_print=False):
     """
     Merge the accounts and tickets_all dataframes on account.id
     return: merged
     """
-    merged = pd.merge(accounts, tickets_all, on='account.id')
+    # temp_merged = pd.merge(accounts, tickets_all, on='account.id')
+    # merge accounts and subscriptions where subscriptions has account.ids as index and accounts has account.ids as column
+    merged = pd.merge(accounts, subsriptions, left_on='account.id', right_index=True)
     if is_print:
-        print(merged.head())
+        print(merged.head(2))
         print(f"merged shape: {merged.shape}")
         print(merged.dtypes)
     return merged
@@ -114,6 +129,9 @@ def merge_data_with_test_and_train(test, train, merge_df, is_print=False):
     merged_train = pd.merge(train, merge_df, on='account.id', how='left')
     test.rename(columns={'ID': 'account.id'}, inplace=True)
     merged_test = pd.merge(test, merge_df, on='account.id', how='left')
+    # replace all NaNs with 0
+    merged_train.fillna(0, inplace=True)
+    merged_test.fillna(0, inplace=True)
     if is_print:
         print(merged_train.head())
         print(f"train shape: {merged_train.shape}")
@@ -133,12 +151,12 @@ def load_and_process_data(is_print=False):
 
     # process data
     accounts_nums, tickets_all_nums = clean_data(account_df, tickets_all_df, is_print=is_print)
-
+    subs_piv = pivot_seasons_subs(subscriptions_df, is_print=is_print)
     # count subscriptions
-    train, test = count_subscriptions(subscriptions_df, test_df, train_df, is_print=is_print)
+    # train, test = count_subscriptions(subscriptions_df, test_df, train_df, is_print=is_print)
     # merge data
-    merged = merge_data(accounts_nums, tickets_all_nums, is_print=is_print)
-    train, test = merge_data_with_test_and_train(test, train, merged, is_print=is_print)
+    merged = merge_data(accounts_nums, tickets_all_nums, subs_piv, is_print=is_print)
+    train, test = merge_data_with_test_and_train(test_df, train_df, merged, is_print=True)
     return train, test
 
 if __name__ == "__main__":
