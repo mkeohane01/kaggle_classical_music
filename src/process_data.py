@@ -156,7 +156,7 @@ def load_and_process_data(is_print=False):
     # train, test = count_subscriptions(subscriptions_df, test_df, train_df, is_print=is_print)
     # merge data
     merged = merge_data(accounts_nums, tickets_all_nums, subs_piv, is_print=is_print)
-    train, test = merge_data_with_test_and_train(test_df, train_df, merged, is_print=True)
+    train, test = merge_data_with_test_and_train(test_df, train_df, merged, is_print=is_print)
     return train, test
 
 if __name__ == "__main__":

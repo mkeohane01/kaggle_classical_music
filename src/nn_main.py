@@ -102,17 +102,17 @@ def main():
     nnet = NNet()
 
     # Train model
-    model, train_losses, val_losses, train_accuracies, val_accuracies = train_network(trainloader, valloader, nnet, lr=0.000125, epochs=55, is_print=True)
+    model, train_losses, val_losses, train_accuracies, val_accuracies = train_network(trainloader, valloader, nnet, lr=0.000125, epochs=60, is_print=True)
 
     # Test model
     preds = predict_outputs(model, testloader, device='cpu')
 
     # save predictions to csv
     preds_df = pd.DataFrame({'ID': test_data['account.id'], 'Predicted': preds.flatten()})
-    preds_df.to_csv(data_folder + 'preds.csv', index=False)
+    preds_df.to_csv(data_folder + 'nn_preds.csv', index=False)
 
     # Save model
-    torch.save(model.state_dict(), model_folder + 'model2.pth')
+    torch.save(model.state_dict(), model_folder + 'model_3.pth')
 
     # test model using validation set
     preds = predict_outputs(model, valloader, device='cpu')
@@ -120,6 +120,22 @@ def main():
 
     # plot loss
     plot_loss(train_losses, val_losses)
+
+    # load opt checkpoint
+    model.load_state_dict(torch.load(model_folder + 'opt_checkpoint.pth'))
+
+    # test model using validation set
+    val_preds = predict_outputs(model, valloader, device='cpu')
+    print(generate_roc(val_preds.flatten(), val_y.values.flatten()))
+
+    # save predictions of opt model to csv
+    test_preds = predict_outputs(model, testloader, device='cpu')
+    preds_df = pd.DataFrame({'ID': test_data['account.id'], 'Predicted': test_preds.flatten()})
+    preds_df.to_csv(data_folder + 'nn_opt_preds.csv', index=False)
+
+    # plot loss
+    plot_loss(train_losses, val_losses)
+
 if __name__ == "__main__":
     main()
 
