@@ -7,19 +7,39 @@ import numpy as np
 
 # define the network
 class NNet(nn.Module):
-    def __init__(self):
+    def __init__(self, n_feats=25, dropout=0.0):
         super().__init__()
-        self.hidden1 = nn.Linear(24, 48)
-        self.hidden2 = nn.Linear(48, 24)
-        self.out = nn.Linear(24, 1)
+        self.hidden1 = nn.Linear(n_feats, 50)
+        self.hidden2 = nn.Linear(50, 50)
+        self.hidden3 = nn.Linear(50, 25)
+        self.out = nn.Linear(25, 1)
+        self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x):
         x = F.relu(self.hidden1(x))
+        x = self.dropout(x)
         x = F.relu(self.hidden2(x))
+        x = self.dropout(x)
+        x = F.relu(self.hidden3(x))
+        x = self.dropout(x)
         x = torch.sigmoid(self.out(x))
         return x
 
-nnet = NNet()
+class NNet_simple(nn.Module):
+    def __init__(self, n_feats=25, dropout=0.0):
+        super().__init__()
+        self.hidden1 = nn.Linear(n_feats, 50)
+        self.hidden2 = nn.Linear(50, 20)
+        self.out = nn.Linear(20, 1)
+        self.dropout = nn.Dropout(p=dropout)
+
+    def forward(self, x):
+        x = F.relu(self.hidden1(x))
+        x = self.dropout(x)
+        x = F.relu(self.hidden2(x))
+        x = self.dropout(x)
+        x = torch.sigmoid(self.out(x))
+        return x
 
 def train_network(train_data, val_data, model, lr=0.001, epochs=200, is_print=False):
     """

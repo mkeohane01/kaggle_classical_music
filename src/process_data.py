@@ -41,7 +41,7 @@ def load_test_and_train(dir = data_dir, is_print=False):
         
     return train, test
 
-
+# depricated
 def count_subscriptions(subscriptions, test_data, train_data, is_print=False):
     """
     Count the number of subscriptions for each accountid in each data set.
@@ -49,11 +49,11 @@ def count_subscriptions(subscriptions, test_data, train_data, is_print=False):
     """
     # for each account.id in train_df find how many times it appears in subscriptions_df account.id and store as a new column. make value 0 if it doesn't appear
     train_data['subs_count'] = train_data['account.id'].map(subscriptions['account.id'].value_counts())
-    train_data['subs_count'].fillna(0, inplace=True)
+    train_data['subs_count'].fillna(-99, inplace=True)
 
     # do same thing for test_df
     test_data['subs_count'] = test_data['ID'].map(subscriptions['account.id'].value_counts())
-    test_data['subs_count'].fillna(0, inplace=True)
+    test_data['subs_count'].fillna(-99, inplace=True)
 
     if is_print:
         print(train_data.head(2))
@@ -68,53 +68,79 @@ def pivot_seasons_subs(subs_df, is_print=False):
     encode the seasons column in the subscriptions dataframe thorugh pivoting
     Return: subs_df: updated dataframe with one hot encoded seasons
     """
+    # create one hot encoded columns for each season
     subs_pivot = subs_df.pivot_table(index='account.id', columns='season', values='subscription_tier', aggfunc='max')
-    subs_pivot = subs_pivot.fillna(0)
-
+    subs_pivot = subs_pivot.fillna(-99)
+    # rename each season columns to be subs_{season}.
+    subs_pivot.columns = ['subs_' + str(col) for col in subs_pivot.columns]
+    # remove all of the columns before 2009
+    # subs_pivot = subs_pivot.drop(subs_pivot.columns[0:8], axis=1)
     if is_print:
         print(subs_pivot.head(2))
         print(f"df shape: {subs_pivot.shape}")
     return subs_pivot
 
-def clean_data(accounts, tickets_all, is_print=False):
+def encode_tickets(tickets_df, is_print=False):
     """
-    Processes the dataframes to only include the columns we can use in forms that we can use
-    return: accounts_nums, tickets_all_nums
+    encode the seasons, set, and locations column in the tickets dataframe thorugh pivoting
+    Return: tickets_df: updated dataframe with one hot encoded seasons, sets, and locations
     """
-    # start with tickets_all
-    tickets_all_nums = tickets_all[['account.id', 'price.level', 'no.seats', 'season', 'set']]
-    # convert price.level to float skipping invalid data
-    tickets_all_nums['price.level'] = pd.to_numeric(tickets_all['price.level'], errors='coerce')
-    # convert season to float (take fist number) eg 2016-2017 -> 2016
-    tickets_all_nums['season'] = tickets_all['season'].str[:4].astype(float)
-    # count how many times account.id appears in tickets_all and store as a new column then remove account.id duplicates
-    tickets_all_nums['no.tickets'] = tickets_all_nums['account.id'].map(tickets_all_nums['account.id'].value_counts())
-    tickets_all_nums.drop_duplicates(subset='account.id', inplace=True)
-    tickets_all_nums.dropna(inplace=True)
+    # create one hot encoded columns for each location
+    location_pivot = tickets_df.pivot_table(index='account.id', columns='location', values='no.seats', aggfunc='count')
 
+    # create one hot encoded columns for each set
+    set_pivot = tickets_df.pivot_table(index='account.id', columns='set', values='price.level', aggfunc='count')
+    # rename each set columns to be set_1, set_2, etc.
+    set_pivot.columns = ['set_' + str(col) for col in set_pivot.columns]
+
+    # create one hot encoded columns for each season
+    season_pivot = tickets_df.pivot_table(index='account.id', columns='season', values='no.seats', aggfunc='count')
+    # rename each season columns to be ticket_{season}.
+    season_pivot.columns = ['ticket_' + str(col) for col in season_pivot.columns]
+
+    # merge the three dataframes
+    tickets_pivot_temp = pd.merge(location_pivot, set_pivot, on='account.id')
+    tickets_pivot = pd.merge(tickets_pivot_temp, season_pivot, on='account.id')
+
+    # fill NaNs with 0
+    tickets_pivot.fillna(-99, inplace=True)
     if is_print:
-        print(tickets_all_nums.head())
-        print(f"tickets_all shape: {tickets_all_nums.shape}")
-        print(tickets_all_nums.dtypes)
+        print(tickets_pivot.head(2))
+        print(f"df shape: {tickets_pivot.shape}")
+        print(tickets_pivot.dtypes)
+    return tickets_pivot
 
-    # now do accounts
-    account_nums = accounts[['account.id', 'amount.donated.2013', 'amount.donated.lifetime','no.donations.lifetime']]
+def clean_account_data(accounts, is_print=False):
+    """
+    Processes the account dataframe to only include the columns we can use in forms that we can use
+    return: accounts_nums
+    """
+   
+    # keep the account columns we can work with
+    account_nums = accounts[['account.id', 'billing.zip.code','amount.donated.2013', 'amount.donated.lifetime','no.donations.lifetime']]
+    # convert zip code to float skipping invalid data
+    account_nums['billing.zip.code'] = pd.to_numeric(account_nums['billing.zip.code'], errors='coerce')
     account_nums.dropna(inplace=True)
+    # drop billing.zip.code column
+    # account_nums.drop('billing.zip.code', axis=1, inplace=True)
     if is_print:
         print(account_nums.head())
         print(f"accounts shape: {account_nums.shape}")
         print(account_nums.dtypes)
 
-    return account_nums, tickets_all_nums
+    return account_nums
 
 def merge_data(accounts, tickets_all, subsriptions, is_print=False):
     """
-    Merge the accounts and tickets_all dataframes on account.id
+    Merge the accounts and subscriptions dataframes on account.id
     return: merged
     """
-    # temp_merged = pd.merge(accounts, tickets_all, on='account.id')
+
     # merge accounts and subscriptions where subscriptions has account.ids as index and accounts has account.ids as column
     merged = pd.merge(accounts, subsriptions, left_on='account.id', right_index=True)
+    # merge temp_merged and tickets_all where tickets_all has account.ids as index and merged has account.ids as column
+    # merged = pd.merge(temp_merged, tickets_all, left_on='account.id', right_index=True)
+    # merged = pd.merge(accounts, tickets_all, on='account.id', how='left')
     if is_print:
         print(merged.head(2))
         print(f"merged shape: {merged.shape}")
@@ -130,8 +156,8 @@ def merge_data_with_test_and_train(test, train, merge_df, is_print=False):
     test.rename(columns={'ID': 'account.id'}, inplace=True)
     merged_test = pd.merge(test, merge_df, on='account.id', how='left')
     # replace all NaNs with 0
-    merged_train.fillna(0, inplace=True)
-    merged_test.fillna(0, inplace=True)
+    merged_train.fillna(-99, inplace=True)
+    merged_test.fillna(-99, inplace=True)
     if is_print:
         print(merged_train.head())
         print(f"train shape: {merged_train.shape}")
@@ -144,19 +170,26 @@ def merge_data_with_test_and_train(test, train, merge_df, is_print=False):
 def load_and_process_data(is_print=False):
     """
     Load and process the data from the csv and return the train and test dataframes
+    Returns: train, test
     """
     # read in data
     tickets_all_df, account_df, subscriptions_df = load_csvs(is_print=is_print)
     train_df, test_df = load_test_and_train(is_print=is_print)
 
     # process data
-    accounts_nums, tickets_all_nums = clean_data(account_df, tickets_all_df, is_print=is_print)
+    accounts_nums = clean_account_data(account_df, is_print=is_print)
     subs_piv = pivot_seasons_subs(subscriptions_df, is_print=is_print)
-    # count subscriptions
-    # train, test = count_subscriptions(subscriptions_df, test_df, train_df, is_print=is_print)
+    tickets_all = encode_tickets(tickets_all_df, is_print=is_print)
+
     # merge data
-    merged = merge_data(accounts_nums, tickets_all_nums, subs_piv, is_print=is_print)
+    merged = merge_data(accounts_nums, tickets_all, subs_piv, is_print=is_print)
     train, test = merge_data_with_test_and_train(test_df, train_df, merged, is_print=is_print)
+
+    # keep only the features we want
+    # droppable_cols = []
+    # train = train.drop(droppable_cols, axis=1)
+    # test = test.drop(droppable_cols, axis=1)
+    # print(f"test shape = {test.shape}")
     return train, test
 
 if __name__ == "__main__":

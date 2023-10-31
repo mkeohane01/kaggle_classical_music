@@ -1,5 +1,5 @@
 from process_data import load_and_process_data
-from nueral_network import train_network, NNet, predict_outputs
+from nueral_network import train_network, NNet_simple, NNet, predict_outputs
 from sklearn.model_selection import train_test_split
 import torch
 import numpy as np
@@ -12,33 +12,12 @@ from sklearn.metrics import roc_curve, auc
 data_folder = 'data/'
 model_folder = 'models/'
 
-def setup_dataloaders(test_df, train_df, val_percent=0.15, batch_size=32, is_print=False):
+def setup_dataloaders(X_train, X_test, X_val, train_y, val_y, batch_size=32, is_print=False):
     """
     Input test and train data then split into train and validation sets and return dataloaders for each
     return: trainloader, testloader, valloader
     """
-    # Split the data into training and validation sets
-    train_data, val_data = train_test_split(train_df, test_size=val_percent, stratify=train_df['label'])
 
-    ## split in to features and labels
-    train_x  = train_data.drop(['account.id', 'label'], axis=1)
-    train_y = train_data['label']
-
-    val_x = val_data.drop(['account.id', 'label'], axis=1)
-    val_y = val_data['label']
-
-    # scale the data
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(train_x)
-    X_test = scaler.transform(test_df.drop(['account.id'], axis=1))
-    X_val = scaler.transform(val_x)
-
-    if is_print:
-        print(f"X_train shape: {X_train.shape}")
-        print(f"y_train shape: {train_y.shape}")
-        print(f"X_val shape: {X_val.shape}")
-        print(f"y_val shape: {val_y.shape}")
-        print(f"X_test shape: {X_test.shape}")
     # Convert training and test data to TensorDatasets
     trainset = TensorDataset(torch.from_numpy(np.array(X_train)).float(), 
                             torch.from_numpy(np.array(train_y)).float().view(-1,1))
@@ -52,7 +31,7 @@ def setup_dataloaders(test_df, train_df, val_percent=0.15, batch_size=32, is_pri
     testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False)
     valloader = torch.utils.data.DataLoader(valset, batch_size=batch_size, shuffle=False)
 
-    return trainloader, testloader, valloader, val_y
+    return trainloader, testloader, valloader
 
 def generate_roc(preds, labels):
     """
@@ -93,16 +72,32 @@ def main():
     """
     
     # load and process data
-    train_data, test_data = load_and_process_data()
+    train_data, test_data = load_and_process_data(is_print=False)
+
+    # Split the data into training and validation sets
+    train_data, val_data = train_test_split(train_data, test_size=0.5, stratify=train_data['label'])
+
+    ## split in to features and labels
+    train_x  = train_data.drop(['account.id', 'label'], axis=1)
+    train_y = train_data['label']
+
+    val_x = val_data.drop(['account.id', 'label'], axis=1)
+    val_y = val_data['label']
+
+    # scale the data
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(train_x)
+    X_test = scaler.transform(test_data.drop(['account.id'], axis=1))
+    X_val = scaler.transform(val_x)
 
     # setup dataloaders
-    trainloader, testloader, valloader, val_y = setup_dataloaders(test_data, train_data)
+    trainloader, testloader, valloader = setup_dataloaders(X_train, X_test, X_val, train_y, val_y)
 
     # initialize model
-    nnet = NNet()
+    nnet = NNet_simple(n_feats=25, dropout=0.15)
 
     # Train model
-    model, train_losses, val_losses, train_accuracies, val_accuracies = train_network(trainloader, valloader, nnet, lr=0.000125, epochs=60, is_print=True)
+    model, train_losses, val_losses, train_accuracies, val_accuracies = train_network(trainloader, valloader, nnet, lr=0.0001, epochs=35, is_print=True)
 
     # Test model
     preds = predict_outputs(model, testloader, device='cpu')
