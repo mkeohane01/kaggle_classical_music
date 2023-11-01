@@ -1,3 +1,8 @@
+"""
+Main file to train and test the xgboost model
+Loads data, fits model, saves model, and saves predictions
+To use this file, just run it and call xgboost_main()
+"""
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -12,7 +17,8 @@ model_folder = 'models/'
 
 def xgboost_main():
     """
-    Main function
+    Main function to train and test the xgboost model
+    Loads data, fits model, saves model, and saves predictions
     """
     # load and process data
     train, test = load_and_process_data(is_print=False)
@@ -20,8 +26,8 @@ def xgboost_main():
     # sum up the number of positive and negative labels
     pos = train['label'].sum()
     neg = len(train) - pos
-    scale_pos_weight = neg/pos
-    print(f"Positive labels: {neg/pos}")
+    # calculate the scale_pos_weight parameter
+    scale_pos_weight = neg/pos / 2
 
     # split into training and validation  sets
     train, val = train_test_split(train, test_size=0.15, stratify=train['label'])
@@ -36,20 +42,22 @@ def xgboost_main():
     val_X_scaled = scaler.transform(val_X)
     test_scaled = scaler.transform(test.drop('account.id', axis=1))
     # print(f"train shape: {train_X_scaled.shape}")
-    # print(train_X_scaled.head())
+    
+    # get names of features from train_X
+    feature_names = train_X.columns.values.tolist()
 
     # make in to xgb type
-    dtrain = xgb.DMatrix(train_X_scaled, label=train_y)
-    dval = xgb.DMatrix(val_X_scaled, label=val_y)
-    dtest = xgb.DMatrix(test_scaled)
+    dtrain = xgb.DMatrix(train_X_scaled, label=train_y, feature_names=feature_names)
+    dval = xgb.DMatrix(val_X_scaled, label=val_y, feature_names=feature_names)
+    dtest = xgb.DMatrix(test_scaled, feature_names=feature_names)
 
     # initialize parameters
     # lambda is L2 regularization, alpha is L1 regularization
-    params = {'max_depth': 25, 'lambda': 100, 'objective': 'binary:logistic', 'eta': 0.3, 'scale_pos_weight': scale_pos_weight, 'num_parallel_tree': 6}
+    params = {'max_depth': 15, 'lambda': 100, 'objective': 'binary:logistic', 'eta': 0.35, 'scale_pos_weight': scale_pos_weight, 'num_parallel_tree': 8, 'max_delta_step': 5}
     evallist = [(dtrain, 'train'), (dval, 'eval')]
 
     # train model
-    bst = xgb.train(params, dtrain, 20, evallist, early_stopping_rounds=3)
+    bst = xgb.train(params, dtrain, 15, evallist, early_stopping_rounds=3)
 
     xgb.plot_importance(bst)
     # save feature importance to a file

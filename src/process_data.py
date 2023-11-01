@@ -1,9 +1,8 @@
 """
 Handles all of the loading and processing of the csv data files using pandas
+To use this file, import it and call load_and_process_data()
 
 """
-
-
 import pandas as pd
 
 data_dir = 'data/'
@@ -41,10 +40,10 @@ def load_test_and_train(dir = data_dir, is_print=False):
         
     return train, test
 
-# depricated
+# depricated - no longer counting subscriptions like this
 def count_subscriptions(subscriptions, test_data, train_data, is_print=False):
     """
-    Count the number of subscriptions for each accountid in each data set.
+    DEPERICATED - Count the number of subscriptions for each accountid in each data set.
     return: train_data, test_data: updated data with subs_count column
     """
     # for each account.id in train_df find how many times it appears in subscriptions_df account.id and store as a new column. make value 0 if it doesn't appear
@@ -80,9 +79,10 @@ def pivot_seasons_subs(subs_df, is_print=False):
         print(f"df shape: {subs_pivot.shape}")
     return subs_pivot
 
+# Depricated - Not using tickets_all data anymore
 def encode_tickets(tickets_df, is_print=False):
     """
-    encode the seasons, set, and locations column in the tickets dataframe thorugh pivoting
+    DEPRICATED - Encode the seasons, set, and locations column in the tickets dataframe thorugh pivoting
     Return: tickets_df: updated dataframe with one hot encoded seasons, sets, and locations
     """
     # create one hot encoded columns for each location
@@ -102,7 +102,7 @@ def encode_tickets(tickets_df, is_print=False):
     tickets_pivot_temp = pd.merge(location_pivot, set_pivot, on='account.id')
     tickets_pivot = pd.merge(tickets_pivot_temp, season_pivot, on='account.id')
 
-    # fill NaNs with 0
+    # fill NaNs 
     tickets_pivot.fillna(-99, inplace=True)
     if is_print:
         print(tickets_pivot.head(2))
@@ -115,14 +115,12 @@ def clean_account_data(accounts, is_print=False):
     Processes the account dataframe to only include the columns we can use in forms that we can use
     return: accounts_nums
     """
-   
     # keep the account columns we can work with
     account_nums = accounts[['account.id', 'billing.zip.code','amount.donated.2013', 'amount.donated.lifetime','no.donations.lifetime']]
     # convert zip code to float skipping invalid data
     account_nums['billing.zip.code'] = pd.to_numeric(account_nums['billing.zip.code'], errors='coerce')
     account_nums.dropna(inplace=True)
-    # drop billing.zip.code column
-    # account_nums.drop('billing.zip.code', axis=1, inplace=True)
+    
     if is_print:
         print(account_nums.head())
         print(f"accounts shape: {account_nums.shape}")
@@ -130,17 +128,17 @@ def clean_account_data(accounts, is_print=False):
 
     return account_nums
 
-def merge_data(accounts, tickets_all, subsriptions, is_print=False):
+def merge_data(accounts, subsriptions, is_print=False):
     """
     Merge the accounts and subscriptions dataframes on account.id
-    return: merged
+    -- No longer merging tickets_all, but can add back in if needed
+    return: merged dataframe
     """
-
     # merge accounts and subscriptions where subscriptions has account.ids as index and accounts has account.ids as column
     merged = pd.merge(accounts, subsriptions, left_on='account.id', right_index=True)
     # merge temp_merged and tickets_all where tickets_all has account.ids as index and merged has account.ids as column
     # merged = pd.merge(temp_merged, tickets_all, left_on='account.id', right_index=True)
-    # merged = pd.merge(accounts, tickets_all, on='account.id', how='left')
+
     if is_print:
         print(merged.head(2))
         print(f"merged shape: {merged.shape}")
@@ -149,7 +147,7 @@ def merge_data(accounts, tickets_all, subsriptions, is_print=False):
 
 def merge_data_with_test_and_train(test, train, merge_df, is_print=False):
     """
-    Merge the test and train dataframes with the merged accounts and tickets_all dataframes on account.id preserving shape
+    Merge the test and train dataframes with the total merged dataframes on account.id preserving shape
     return: merged_train, merged_test
     """
     merged_train = pd.merge(train, merge_df, on='account.id', how='left')
@@ -169,7 +167,7 @@ def merge_data_with_test_and_train(test, train, merge_df, is_print=False):
 
 def load_and_process_data(is_print=False):
     """
-    Load and process the data from the csv and return the train and test dataframes
+    Load and process the data from the csv and return the train and test dataframes with all the wanted features
     Returns: train, test
     """
     # read in data
@@ -179,17 +177,12 @@ def load_and_process_data(is_print=False):
     # process data
     accounts_nums = clean_account_data(account_df, is_print=is_print)
     subs_piv = pivot_seasons_subs(subscriptions_df, is_print=is_print)
-    tickets_all = encode_tickets(tickets_all_df, is_print=is_print)
+    # tickets_all = encode_tickets(tickets_all_df, is_print=is_print)
 
     # merge data
-    merged = merge_data(accounts_nums, tickets_all, subs_piv, is_print=is_print)
+    merged = merge_data(accounts_nums, subs_piv, is_print=is_print)
     train, test = merge_data_with_test_and_train(test_df, train_df, merged, is_print=is_print)
 
-    # keep only the features we want
-    # droppable_cols = []
-    # train = train.drop(droppable_cols, axis=1)
-    # test = test.drop(droppable_cols, axis=1)
-    # print(f"test shape = {test.shape}")
     return train, test
 
 if __name__ == "__main__":

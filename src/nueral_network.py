@@ -1,3 +1,8 @@
+"""
+This file contains the Nueral Net class as well as 
+functions to train and test the neural network
+To use import the NNet class, train_network, and predict_output functions
+"""
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -5,8 +10,12 @@ import torch
 from sklearn.metrics import roc_curve, auc
 import numpy as np
 
-# define the network
 class NNet(nn.Module):
+    """
+    Class containing the neural network model
+    3 hidden layers with 50, 50, and 25 nodes respectively
+    Inputs inlcude the number of features and dropout rate
+    """
     def __init__(self, n_feats=25, dropout=0.0):
         super().__init__()
         self.hidden1 = nn.Linear(n_feats, 50)
@@ -25,25 +34,12 @@ class NNet(nn.Module):
         x = torch.sigmoid(self.out(x))
         return x
 
-class NNet_simple(nn.Module):
-    def __init__(self, n_feats=25, dropout=0.0):
-        super().__init__()
-        self.hidden1 = nn.Linear(n_feats, 50)
-        self.hidden2 = nn.Linear(50, 20)
-        self.out = nn.Linear(20, 1)
-        self.dropout = nn.Dropout(p=dropout)
-
-    def forward(self, x):
-        x = F.relu(self.hidden1(x))
-        x = self.dropout(x)
-        x = F.relu(self.hidden2(x))
-        x = self.dropout(x)
-        x = torch.sigmoid(self.out(x))
-        return x
-
 def train_network(train_data, val_data, model, lr=0.001, epochs=200, is_print=False):
     """
-    Train the network
+    Train the nueral network while printing metrics and saving the model
+    -- saves the model when validation loss is minimized
+    Inputs the training and validation data along with the model
+    Returns: The trained model and lists of training and validation losses
     """
     # define the loss
     criterion = nn.BCELoss()
@@ -55,6 +51,7 @@ def train_network(train_data, val_data, model, lr=0.001, epochs=200, is_print=Fa
     train_accuracies, val_accuracies = [], []
     best_loss = np.Inf
 
+    # train the network over the given number of epochs
     for e in range(epochs):
         running_loss = 0
         running_accuracy = 0
@@ -76,7 +73,6 @@ def train_network(train_data, val_data, model, lr=0.001, epochs=200, is_print=Fa
             
         else:
             # compute validation loss and accuracy
-        
             val_loss = 0
             val_accuracy = 0
             num_truepos = 0
@@ -104,19 +100,19 @@ def train_network(train_data, val_data, model, lr=0.001, epochs=200, is_print=Fa
                     f"V Loss: {val_loss/len(val_data):.3f}.. ",
                     f"V Recall: {val_recall:.3f}.. ")
             
-            # save when validation loss decreases
+            # save when validation loss decreases below minimum
             if val_loss < best_loss:
                 best_loss = val_loss
                 print(f"Saving model at epoch {e+1}")
                 torch.save(model.state_dict(), 'models/' + 'opt_checkpoint.pth')
                     
                 
-    return model, train_losses, val_losses, train_accuracies, val_accuracies
+    return model, train_losses, val_losses
 
-# generate predictions using test data 
 def predict_outputs(model,testloader,device):
     """
-    generate predictions using test data
+    Generate predictions using test data and the given model
+    Returns: numpy array of predictions
     """
 
     model.eval() # Set the model to evaluation mode

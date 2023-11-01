@@ -1,5 +1,9 @@
+"""
+Main function for training and using a neural network for the ticket classification problem
+To use this file, just run it and call main()
+"""
 from process_data import load_and_process_data
-from nueral_network import train_network, NNet_simple, NNet, predict_outputs
+from nueral_network import train_network, NNet, predict_outputs
 from sklearn.model_selection import train_test_split
 import torch
 import numpy as np
@@ -14,11 +18,11 @@ model_folder = 'models/'
 
 def setup_dataloaders(X_train, X_test, X_val, train_y, val_y, batch_size=32, is_print=False):
     """
-    Input test and train data then split into train and validation sets and return dataloaders for each
+    Input test, validation and train data then build dataloaders for each
     return: trainloader, testloader, valloader
     """
 
-    # Convert training and test data to TensorDatasets
+    # Convert training, validation and test data to TensorDatasets
     trainset = TensorDataset(torch.from_numpy(np.array(X_train)).float(), 
                             torch.from_numpy(np.array(train_y)).float().view(-1,1))
     testset = TensorDataset(torch.from_numpy(np.array(X_test)).float())
@@ -26,16 +30,17 @@ def setup_dataloaders(X_train, X_test, X_val, train_y, val_y, batch_size=32, is_
     valset = TensorDataset(torch.from_numpy(np.array(X_val)).float(), 
                             torch.from_numpy(np.array(val_y)).float().view(-1,1))
 
-    # Create Dataloaders for our training and test data to allow us to iterate over minibatches 
+    # Create Dataloaders for our training, validation and test data to allow us to iterate over minibatches 
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True)
     testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False)
     valloader = torch.utils.data.DataLoader(valset, batch_size=batch_size, shuffle=False)
 
     return trainloader, testloader, valloader
 
-def generate_roc(preds, labels):
+def generate_roc(preds, labels, label = "NN"):
     """
-    Generate ROC curve
+    Generate and plot ROC curve based on preds and labels
+    Return: area under the curve (AUROC)
     """
     # calculate true positive rate and false positive rate along with roc
     fpr, tpr, thresholds = roc_curve(labels, preds)
@@ -43,13 +48,12 @@ def generate_roc(preds, labels):
     # calculate area under the curve
     roc_auc = auc(fpr, tpr)
 
-    # plot the ROC curve
     # plot ROC curve
     plt.plot(fpr, tpr, label=f'AUC = {roc_auc:.2f}')
     plt.plot([0, 1], [0, 1], linestyle='--', color='gray')
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic (ROC) Curve')
+    plt.title('ROC Curve: '+ label)
     plt.legend()
     plt.show()
 
@@ -64,13 +68,10 @@ def plot_loss(train_losses, val_losses):
     plt.legend()
     plt.show()
 
-
-
 def main():
     """
-    Main function
+    Main function to train, test, and save the nueral network model and its predictions
     """
-    
     # load and process data
     train_data, test_data = load_and_process_data(is_print=False)
 
@@ -94,10 +95,10 @@ def main():
     trainloader, testloader, valloader = setup_dataloaders(X_train, X_test, X_val, train_y, val_y)
 
     # initialize model
-    nnet = NNet_simple(n_feats=25, dropout=0.15)
+    nnet = NNet(n_feats=25, dropout=0.15)
 
     # Train model
-    model, train_losses, val_losses, train_accuracies, val_accuracies = train_network(trainloader, valloader, nnet, lr=0.0001, epochs=35, is_print=True)
+    model, train_losses, val_losses = train_network(trainloader, valloader, nnet, lr=0.0001, epochs=35, is_print=True)
 
     # Test model
     preds = predict_outputs(model, testloader, device='cpu')
@@ -111,7 +112,8 @@ def main():
 
     # test model using validation set
     preds = predict_outputs(model, valloader, device='cpu')
-    print(generate_roc(preds.flatten(), val_y.values.flatten()))
+    auroc = generate_roc(preds.flatten(), val_y.values.flatten())
+    print(f"ROC AUC: {auroc}")
 
     # plot loss
     plot_loss(train_losses, val_losses)
@@ -119,11 +121,12 @@ def main():
     # load opt checkpoint
     model.load_state_dict(torch.load(model_folder + 'opt_checkpoint.pth'))
 
-    # test model using validation set
+    # test model using validation set on early stopping model
     val_preds = predict_outputs(model, valloader, device='cpu')
-    print(generate_roc(val_preds.flatten(), val_y.values.flatten()))
+    auroc = generate_roc(val_preds.flatten(), val_y.values.flatten())
+    print(f"ROC AUC: {auroc}")
 
-    # save predictions of opt model to csv
+    # save predictions of opt early stopping model to csv
     test_preds = predict_outputs(model, testloader, device='cpu')
     preds_df = pd.DataFrame({'ID': test_data['account.id'], 'Predicted': test_preds.flatten()})
     preds_df.to_csv(data_folder + 'nn_opt_preds.csv', index=False)
