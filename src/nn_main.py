@@ -76,7 +76,7 @@ def main():
     train_data, test_data = load_and_process_data(is_print=False)
 
     # Split the data into training and validation sets
-    train_data, val_data = train_test_split(train_data, test_size=0.5, stratify=train_data['label'])
+    train_data, val_data = train_test_split(train_data, test_size=0.2, stratify=train_data['label'])
 
     ## split in to features and labels
     train_x  = train_data.drop(['account.id', 'label'], axis=1)
